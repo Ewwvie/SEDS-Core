@@ -1,6 +1,6 @@
 from renderer import AtmosApp
 import moderngl_window as mglw
-from moderngl_window import keys
+
 
 FRAG = """
 #version 330
@@ -108,14 +108,14 @@ class Ch2(AtmosApp):
         self.vao.render()
 
     def key_event(self, key, action, modifiers):
-        if action != keys.Action.ACTION_PRESS:
-            return
-        step = 0.02
-        if key == keys.RIGHT:
-            self.time_of_day = min(1.0, self.time_of_day + step)
-        elif key == keys.LEFT:
-            self.time_of_day = max(0.0, self.time_of_day - step)
-        print(f"time_of_day = {self.time_of_day:.2f}")
-
+     keys = self.wnd.keys
+     if action != keys.ACTION_PRESS:
+        return
+     step = 0.02
+     if key == keys.RIGHT:
+        self.time_of_day = min(1.0, self.time_of_day + step)
+     elif key == keys.LEFT:
+        self.time_of_day = max(0.0, self.time_of_day - step)
+     print(f"time_of_day = {self.time_of_day:.2f}")
 if __name__ == "__main__":
     mglw.run_window_config(Ch2)
