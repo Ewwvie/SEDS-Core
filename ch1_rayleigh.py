@@ -1,5 +1,6 @@
 from renderer import AtmosApp
 import moderngl_window as mglw
+from moderngl_window import keys
 
 FRAG = """
 #version 330
@@ -8,6 +9,7 @@ out vec4 fragColor;
 
 uniform vec2  u_res;
 uniform float u_time;
+uniform float u_time_of_day;
 
 const float PLANET_R = 6371e3;
 const float ATMOS_R  = 6471e3;
@@ -16,7 +18,6 @@ const float H_RAY    = 8500.0;
 const int   VIEW_STEPS = 16;
 const int   SUN_STEPS  = 8;
 
-// Ray-sphere intersection, returns (t_near, t_far)
 vec2 raySphere(vec3 ro, vec3 rd, float r) {
     float b = dot(ro, rd);
     float c = dot(ro, ro) - r * r;
@@ -26,13 +27,11 @@ vec2 raySphere(vec3 ro, vec3 rd, float r) {
     return vec2(-b - s, -b + s);
 }
 
-// Air density drops exponentially with altitude
 float density(vec3 p) {
     float altitude = length(p) - PLANET_R;
     return exp(-altitude / H_RAY);
 }
 
-// OPTICAL DEPTH: march along ray, sum up density at each step (Riemann sum)
 float opticalDepth(vec3 ro, vec3 rd, float dist) {
     float stepSize = dist / float(SUN_STEPS);
     float total = 0.0;
@@ -43,7 +42,6 @@ float opticalDepth(vec3 ro, vec3 rd, float dist) {
     return total;
 }
 
-// Rayleigh phase function — equation (1) from the assignment
 float phaseRayleigh(float cosTheta) {
     return (3.0 / (16.0 * 3.14159265)) * (1.0 + cosTheta * cosTheta);
 }
@@ -62,16 +60,11 @@ vec3 calcScattering(vec3 ro, vec3 rd, vec3 sunDir) {
     for (int i = 0; i < VIEW_STEPS; i++) {
         vec3 pos = ro + rd * (tStart + (float(i) + 0.5) * stepSize);
 
-        // Optical depth: camera → sample point
         float od_cam = opticalDepth(ro, rd, tStart + float(i) * stepSize);
-
-        // Optical depth: sample point → sun
         vec2  sunHit = raySphere(pos, sunDir, ATMOS_R);
         float od_sun = opticalDepth(pos, sunDir, sunHit.y);
 
-        // Beer-Lambert transmittance on both paths
         vec3 T = exp(-BETA_RAY * (od_cam + od_sun));
-
         total += T * density(pos) * BETA_RAY * phase * stepSize;
     }
 
@@ -83,8 +76,8 @@ void main() {
     vec3 ro = vec3(0.0, PLANET_R + 100.0, 0.0);
     vec3 rd = normalize(vec3(uv.x * aspect, uv.y + 0.1, -1.5));
 
-    // Try changing the y value: -0.1 = sunset, 0.5 = afternoon, 1.0 = noon
-    vec3 sunDir = normalize(vec3(0.0, 0.1, -1.0));
+    float angle = (u_time_of_day - 0.5) * 3.14159265;
+    vec3 sunDir = normalize(vec3(0.0, sin(angle), -cos(angle)));
 
     vec3 col = calcScattering(ro, rd, sunDir);
     col = 1.0 - exp(-col);
@@ -94,8 +87,31 @@ void main() {
 """
 
 class Ch1(AtmosApp):
-    title = "Ch1: Rayleigh Scattering & Transmittance"
+    title = "Ch1: Rayleigh Scattering"
     frag_shader = FRAG
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.time_of_day = 0.5
+
+    def render(self, time, frame_time):
+        self.ctx.clear()
+        if 'u_res' in self.prog:
+            self.prog['u_res'].value = self.window_size
+        if 'u_time' in self.prog:
+            self.prog['u_time'].value = time
+        self.prog['u_time_of_day'].value = self.time_of_day
+        self.vao.render()
+
+    def key_event(self, key, action, modifiers):
+        if action != keys.Action.ACTION_PRESS:
+            return
+        step = 0.02
+        if key == keys.RIGHT:
+            self.time_of_day = min(1.0, self.time_of_day + step)
+        elif key == keys.LEFT:
+            self.time_of_day = max(0.0, self.time_of_day - step)
+        print(f"time_of_day = {self.time_of_day:.2f}")
 
 if __name__ == "__main__":
     mglw.run_window_config(Ch1)

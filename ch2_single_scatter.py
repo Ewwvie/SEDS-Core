@@ -1,5 +1,6 @@
 from renderer import AtmosApp
 import moderngl_window as mglw
+from moderngl_window import keys
 
 FRAG = """
 #version 330
@@ -8,6 +9,7 @@ out vec4 fragColor;
 
 uniform vec2  u_res;
 uniform float u_time;
+uniform float u_time_of_day;
 
 const float PLANET_R = 6371e3;
 const float ATMOS_R  = 6471e3;
@@ -73,12 +75,12 @@ void main() {
     float aspect = u_res.x / u_res.y;
     vec3 ro     = vec3(0.0, PLANET_R + 100.0, 0.0);
     vec3 rd     = normalize(vec3(uv.x * aspect, uv.y + 0.1, -1.5));
-    vec3 sunDir = normalize(vec3(0.0, 0.1, -1.0));
+
+    float angle = (u_time_of_day - 0.5) * 3.14159265;
+    vec3 sunDir = normalize(vec3(0.0, sin(angle), -cos(angle)));
 
     vec3 col = calcScattering(ro, rd, sunDir);
 
-    // NEW in Ch2: draw the actual sun disk
-    // smoothstep makes a soft-edged circle where rd almost exactly == sunDir
     float sunDisk = smoothstep(0.9995, 1.0, dot(rd, sunDir));
     col += vec3(1.0, 0.95, 0.8) * sunDisk * 2.0;
 
@@ -89,8 +91,31 @@ void main() {
 """
 
 class Ch2(AtmosApp):
-    title = "Ch2: Single Scattering + Sun Disk"
+    title = "Ch2: Single Scattering"
     frag_shader = FRAG
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.time_of_day = 0.5
+
+    def render(self, time, frame_time):
+        self.ctx.clear()
+        if 'u_res' in self.prog:
+            self.prog['u_res'].value = self.window_size
+        if 'u_time' in self.prog:
+            self.prog['u_time'].value = time
+        self.prog['u_time_of_day'].value = self.time_of_day
+        self.vao.render()
+
+    def key_event(self, key, action, modifiers):
+        if action != keys.Action.ACTION_PRESS:
+            return
+        step = 0.02
+        if key == keys.RIGHT:
+            self.time_of_day = min(1.0, self.time_of_day + step)
+        elif key == keys.LEFT:
+            self.time_of_day = max(0.0, self.time_of_day - step)
+        print(f"time_of_day = {self.time_of_day:.2f}")
 
 if __name__ == "__main__":
     mglw.run_window_config(Ch2)

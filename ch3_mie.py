@@ -1,5 +1,6 @@
 from renderer import AtmosApp
 import moderngl_window as mglw
+from moderngl_window import keys
 
 FRAG = """
 #version 330
@@ -8,15 +9,17 @@ out vec4 fragColor;
 
 uniform vec2  u_res;
 uniform float u_time;
+uniform float u_time_of_day;
 
 const float PLANET_R = 6371e3;
 const float ATMOS_R  = 6471e3;
 
 const vec3  BETA_RAY = vec3(5.8e-6, 13.5e-6, 33.1e-6);
 const float H_RAY    = 8500.0;
-const vec3  BETA_MIE = vec3(21e-6);    
-const float H_MIE     = 1200.0;        
-const float G         = 0.76;          
+
+const vec3  BETA_MIE = vec3(21e-6);
+const float H_MIE    = 1200.0;
+const float G        = 0.76;
 
 const int   VIEW_STEPS = 16;
 const int   SUN_STEPS  = 8;
@@ -49,13 +52,13 @@ vec2 opticalDepth(vec3 ro, vec3 rd, float dist) {
         odRay += densityRay(p) * stepSize;
         odMie += densityMie(p) * stepSize;
     }
-    return vec2(odRay, odMie);   // .x = Rayleigh, .y = Mie
+    return vec2(odRay, odMie);
 }
-
 
 float phaseRayleigh(float cosTheta) {
     return (3.0 / (16.0 * 3.14159265)) * (1.0 + cosTheta * cosTheta);
 }
+
 float phaseMie(float cosTheta) {
     float g2 = G * G;
     float denom = 1.0 + g2 - 2.0 * G * cosTheta;
@@ -72,7 +75,7 @@ vec3 calcScattering(vec3 ro, vec3 rd, vec3 sunDir) {
     float cosTheta = dot(rd, sunDir);
 
     float pRay = phaseRayleigh(cosTheta);
-    float pMie = phaseMie(cosTheta);   // NEW
+    float pMie = phaseMie(cosTheta);
 
     vec3 totalRay = vec3(0.0);
     vec3 totalMie = vec3(0.0);
@@ -80,10 +83,7 @@ vec3 calcScattering(vec3 ro, vec3 rd, vec3 sunDir) {
     for (int i = 0; i < VIEW_STEPS; i++) {
         vec3 pos = ro + rd * (tStart + (float(i) + 0.5) * stepSize);
 
-        
         vec2 od_cam = opticalDepth(ro, rd, tStart + float(i) * stepSize);
-
-        
         vec2 sunHit = raySphere(pos, sunDir, ATMOS_R);
         vec2 od_sun = opticalDepth(pos, sunDir, sunHit.y);
 
@@ -101,7 +101,9 @@ void main() {
     float aspect = u_res.x / u_res.y;
     vec3 ro     = vec3(0.0, PLANET_R + 100.0, 0.0);
     vec3 rd     = normalize(vec3(uv.x * aspect, uv.y + 0.1, -1.5));
-    vec3 sunDir = normalize(vec3(0.0, 0.1, -1.0));
+
+    float angle = (u_time_of_day - 0.5) * 3.14159265;
+    vec3 sunDir = normalize(vec3(0.0, sin(angle), -cos(angle)));
 
     vec3 col = calcScattering(ro, rd, sunDir);
 
@@ -117,6 +119,29 @@ void main() {
 class Ch3(AtmosApp):
     title = "Ch3: Mie Scattering"
     frag_shader = FRAG
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.time_of_day = 0.5
+
+    def render(self, time, frame_time):
+        self.ctx.clear()
+        if 'u_res' in self.prog:
+            self.prog['u_res'].value = self.window_size
+        if 'u_time' in self.prog:
+            self.prog['u_time'].value = time
+        self.prog['u_time_of_day'].value = self.time_of_day
+        self.vao.render()
+
+    def key_event(self, key, action, modifiers):
+        if action != keys.Action.ACTION_PRESS:
+            return
+        step = 0.02
+        if key == keys.RIGHT:
+            self.time_of_day = min(1.0, self.time_of_day + step)
+        elif key == keys.LEFT:
+            self.time_of_day = max(0.0, self.time_of_day - step)
+        print(f"time_of_day = {self.time_of_day:.2f}")
 
 if __name__ == "__main__":
     mglw.run_window_config(Ch3)

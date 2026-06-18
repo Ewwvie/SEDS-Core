@@ -36,6 +36,3 @@ class AtmosApp(mglw.WindowConfig):
             self.prog['u_res'].value = self.window_size
         if 'u_time' in self.prog:
             self.prog['u_time'].value = time
-        self.vao.render()
-        
-        
